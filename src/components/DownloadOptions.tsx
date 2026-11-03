@@ -21,7 +21,7 @@ import { AppUser, DOWNLOAD_CREDIT_COST, deductDownloadCredits } from '../utils/c
 
 interface DownloadOptionsProps {
   metadata: VideoMetadata;
-  currentUser: AppUser;
+  currentUser: AppUser | null;
   onCreditsDeducted: (newCredits: number) => void;
   onOpenBuyCredits: () => void;
   onDownloadLogged: (item: DownloadHistoryItem) => void;
@@ -69,9 +69,15 @@ export const DownloadOptions: React.FC<DownloadOptionsProps> = ({
     mediaType
   );
 
-  const hasEnoughCredits = currentUser.credits >= DOWNLOAD_CREDIT_COST;
+  const hasEnoughCredits = currentUser ? currentUser.credits >= DOWNLOAD_CREDIT_COST : false;
 
   const startDownload = async () => {
+    if (!currentUser) {
+      onToast('Please sign in or create an account to download media.', 'error');
+      onOpenBuyCredits();
+      return;
+    }
+
     if (!isAuthorizedConfirmed) {
       onToast('Please confirm content authorization or ownership to proceed', 'error');
       return;
@@ -184,7 +190,10 @@ export const DownloadOptions: React.FC<DownloadOptionsProps> = ({
             </span>
           </div>
           <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
-            Your Wallet Balance: <strong className="text-neutral-800 dark:text-neutral-200">{currentUser.credits} Credits</strong>
+            Your Wallet Balance:{' '}
+            <strong className="text-neutral-800 dark:text-neutral-200">
+              {currentUser ? `${currentUser.credits} Credits` : 'Please sign in to claim 20 Free Credits'}
+            </strong>
           </p>
         </div>
 
@@ -352,7 +361,7 @@ export const DownloadOptions: React.FC<DownloadOptionsProps> = ({
               <span>File Specification & Cost</span>
             </div>
             <span className="text-xs font-bold text-amber-500 font-mono">
-              Cost: 3 Credits (Balance: {currentUser.credits})
+              Cost: 3 Credits (Balance: {currentUser?.credits ?? 0})
             </span>
           </div>
 
@@ -432,7 +441,7 @@ export const DownloadOptions: React.FC<DownloadOptionsProps> = ({
               <div>
                 <p className="font-bold text-sm text-red-600 dark:text-red-400 flex items-center gap-1.5">
                   <AlertTriangle className="w-4 h-4" />
-                  <span>Insufficient Credits ({currentUser.credits} / 3 needed)</span>
+                  <span>Insufficient Credits ({currentUser?.credits ?? 0} / 3 needed)</span>
                 </p>
                 <p className="text-xs text-neutral-600 dark:text-neutral-300 mt-0.5">
                   Each video or audio download costs 3 credits. Recharge your wallet via UPI to continue.

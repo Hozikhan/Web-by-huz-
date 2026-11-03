@@ -23,7 +23,7 @@ interface NavbarProps {
   onOpenHistory: () => void;
   onOpenSupabaseModal: () => void;
   isSupabaseConnected: boolean;
-  currentUser: AppUser;
+  currentUser: AppUser | null;
   onOpenAuth: () => void;
   onOpenBuyCredits: () => void;
   onOpenAdmin: () => void;
@@ -120,61 +120,74 @@ export const Navbar: React.FC<NavbarProps> = ({
 
           {/* Right Action Icons, Wallet & Auth */}
           <div className="flex items-center space-x-2 sm:space-x-2.5">
-            {/* Credit Wallet Badge */}
-            <div className="flex items-center rounded-xl bg-amber-500/10 border border-amber-500/30 p-0.5 text-xs font-bold text-amber-700 dark:text-amber-400 shadow-sm">
+            {currentUser ? (
+              <>
+                {/* Credit Wallet Badge */}
+                <div className="flex items-center rounded-xl bg-amber-500/10 border border-amber-500/30 p-0.5 text-xs font-bold text-amber-700 dark:text-amber-400 shadow-sm">
+                  <button
+                    type="button"
+                    onClick={onOpenBuyCredits}
+                    className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg hover:bg-amber-500/20 transition-colors cursor-pointer"
+                    title="Click to Recharge Credits"
+                  >
+                    <Coins className="w-3.5 h-3.5 text-amber-500 fill-amber-500/30 animate-pulse" />
+                    <span className="font-extrabold">{currentUser.credits}</span>
+                    <span className="text-[10px] hidden sm:inline uppercase tracking-wide">Credits</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={onOpenBuyCredits}
+                    className="px-2 py-1 rounded-lg bg-red-600 hover:bg-red-500 text-white font-extrabold text-[11px] transition-colors flex items-center gap-0.5 shadow-sm"
+                    title="Recharge Credits via UPI"
+                  >
+                    <Plus className="w-3 h-3" />
+                    <span>Buy</span>
+                  </button>
+                </div>
+
+                {/* Admin Panel Trigger */}
+                <button
+                  type="button"
+                  onClick={onOpenAdmin}
+                  className={`relative px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1 cursor-pointer ${
+                    currentUser.role === 'admin'
+                      ? 'bg-purple-600 hover:bg-purple-500 text-white shadow-md shadow-purple-600/20'
+                      : 'bg-neutral-100 dark:bg-neutral-800 text-purple-600 dark:text-purple-400 hover:bg-purple-500/10 border border-purple-500/20'
+                  }`}
+                  title="Admin Approval Panel"
+                >
+                  <ShieldAlert className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">Admin</span>
+                  {pendingRechargesCount > 0 && (
+                    <span className="flex items-center justify-center min-w-4 h-4 px-1 text-[10px] font-black text-white bg-amber-500 rounded-full animate-bounce">
+                      {pendingRechargesCount}
+                    </span>
+                  )}
+                </button>
+
+                {/* User Account / Profile Button */}
+                <button
+                  type="button"
+                  onClick={onOpenAuth}
+                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-bold bg-neutral-100 hover:bg-neutral-200 dark:bg-neutral-800 dark:hover:bg-neutral-700 text-neutral-800 dark:text-neutral-200 border border-neutral-200 dark:border-neutral-700 transition-colors cursor-pointer"
+                  title="Account & Profile"
+                >
+                  <User className="w-3.5 h-3.5 text-neutral-500" />
+                  <span className="max-w-[70px] truncate hidden md:inline">
+                    {currentUser.name.split(' ')[0]}
+                  </span>
+                </button>
+              </>
+            ) : (
               <button
                 type="button"
-                onClick={onOpenBuyCredits}
-                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg hover:bg-amber-500/20 transition-colors cursor-pointer"
-                title="Click to Recharge Credits"
+                onClick={onOpenAuth}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white shadow-md shadow-red-600/20 transition-all cursor-pointer"
               >
-                <Coins className="w-3.5 h-3.5 text-amber-500 fill-amber-500/30 animate-pulse" />
-                <span className="font-extrabold">{currentUser.credits}</span>
-                <span className="text-[10px] hidden sm:inline uppercase tracking-wide">Credits</span>
+                <User className="w-3.5 h-3.5" />
+                <span>Sign In (+20 🪙)</span>
               </button>
-              <button
-                type="button"
-                onClick={onOpenBuyCredits}
-                className="px-2 py-1 rounded-lg bg-red-600 hover:bg-red-500 text-white font-extrabold text-[11px] transition-colors flex items-center gap-0.5 shadow-sm"
-                title="Recharge Credits via UPI"
-              >
-                <Plus className="w-3 h-3" />
-                <span>Buy</span>
-              </button>
-            </div>
-
-            {/* Admin Panel Trigger (Available for Admin or demo testing) */}
-            <button
-              type="button"
-              onClick={onOpenAdmin}
-              className={`relative px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1 cursor-pointer ${
-                currentUser.role === 'admin'
-                  ? 'bg-purple-600 hover:bg-purple-500 text-white shadow-md shadow-purple-600/20'
-                  : 'bg-neutral-100 dark:bg-neutral-800 text-purple-600 dark:text-purple-400 hover:bg-purple-500/10 border border-purple-500/20'
-              }`}
-              title="Admin Approval Panel"
-            >
-              <ShieldAlert className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Admin</span>
-              {pendingRechargesCount > 0 && (
-                <span className="flex items-center justify-center min-w-4 h-4 px-1 text-[10px] font-black text-white bg-amber-500 rounded-full animate-bounce">
-                  {pendingRechargesCount}
-                </span>
-              )}
-            </button>
-
-            {/* User Account / Profile Button */}
-            <button
-              type="button"
-              onClick={onOpenAuth}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-bold bg-neutral-100 hover:bg-neutral-200 dark:bg-neutral-800 dark:hover:bg-neutral-700 text-neutral-800 dark:text-neutral-200 border border-neutral-200 dark:border-neutral-700 transition-colors cursor-pointer"
-              title="Account & Profile"
-            >
-              <User className="w-3.5 h-3.5 text-neutral-500" />
-              <span className="max-w-[70px] truncate hidden md:inline">
-                {currentUser.name.split(' ')[0]}
-              </span>
-            </button>
+            )}
 
             {/* History drawer button */}
             <button
@@ -220,24 +233,42 @@ export const Navbar: React.FC<NavbarProps> = ({
       {/* Mobile Drawer Menu */}
       {mobileMenuOpen && (
         <div className="lg:hidden border-t border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-950 px-4 pt-3 pb-5 space-y-2 animate-fadeIn">
-          <div className="p-3 mb-2 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Coins className="w-4 h-4 text-amber-500" />
-              <span className="text-xs font-bold text-neutral-900 dark:text-white">
-                Wallet: {currentUser.credits} Credits
-              </span>
+          {currentUser ? (
+            <div className="p-3 mb-2 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Coins className="w-4 h-4 text-amber-500" />
+                <span className="text-xs font-bold text-neutral-900 dark:text-white">
+                  Wallet: {currentUser.credits} Credits
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  onOpenBuyCredits();
+                }}
+                className="px-2.5 py-1 text-xs font-extrabold rounded-lg bg-red-600 text-white"
+              >
+                Buy Credits
+              </button>
             </div>
-            <button
-              type="button"
-              onClick={() => {
-                setMobileMenuOpen(false);
-                onOpenBuyCredits();
-              }}
-              className="px-2.5 py-1 text-xs font-extrabold rounded-lg bg-red-600 text-white"
-            >
-              Buy Credits
-            </button>
-          </div>
+          ) : (
+            <div className="p-3 mb-2 rounded-xl bg-red-500/10 border border-red-500/20 flex items-center justify-between">
+              <span className="text-xs font-bold text-neutral-900 dark:text-white">
+                Claim 20 Free Credits
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  onOpenAuth();
+                }}
+                className="px-2.5 py-1 text-xs font-extrabold rounded-lg bg-red-600 text-white"
+              >
+                Sign In
+              </button>
+            </div>
+          )}
 
           <button
             onClick={() => scrollToSection('hero')}

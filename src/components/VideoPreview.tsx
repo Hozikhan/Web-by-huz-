@@ -17,13 +17,25 @@ import {
 } from 'lucide-react';
 import { VideoMetadata, ThumbnailOption } from '../types';
 import { copyToClipboard, downloadThumbnail } from '../utils/download';
+import { AppUser, deductDownloadCredits, DOWNLOAD_CREDIT_COST } from '../utils/credits';
 
 interface VideoPreviewProps {
   metadata: VideoMetadata;
+  currentUser: AppUser | null;
+  onCreditsDeducted: (newBalance: number) => void;
+  onOpenBuyCredits: () => void;
+  onOpenAuth: () => void;
   onToast: (msg: string, type?: 'success' | 'info' | 'error') => void;
 }
 
-export const VideoPreview: React.FC<VideoPreviewProps> = ({ metadata, onToast }) => {
+export const VideoPreview: React.FC<VideoPreviewProps> = ({
+  metadata,
+  currentUser,
+  onCreditsDeducted,
+  onOpenBuyCredits,
+  onOpenAuth,
+  onToast,
+}) => {
   const [copiedTitle, setCopiedTitle] = useState(false);
   const [selectedThumb, setSelectedThumb] = useState<ThumbnailOption>(
     metadata.thumbnails[0] || {
@@ -50,11 +62,43 @@ export const VideoPreview: React.FC<VideoPreviewProps> = ({ metadata, onToast })
   };
 
   const handleDownloadThumbnail = async () => {
+    if (!currentUser) {
+      onToast('Please sign in or create an account to download thumbnails.', 'error');
+      onOpenAuth();
+      return;
+    }
+
+    if (currentUser.credits < DOWNLOAD_CREDIT_COST) {
+      onToast(
+        `Insufficient credits! Thumbnail download requires ${DOWNLOAD_CREDIT_COST} credits. You have ${currentUser.credits} credits.`,
+        'error'
+      );
+      onOpenBuyCredits();
+      return;
+    }
+
     setIsDownloadingThumb(true);
     try {
+      // Deduct 3 credits for thumbnail download
+      const result = deductDownloadCredits(
+        currentUser.id,
+        `Thumbnail: ${metadata.title} (${selectedThumb.label})`
+      );
+
+      if (!result.success) {
+        onToast(result.error || 'Failed to deduct credits', 'error');
+        setIsDownloadingThumb(false);
+        return;
+      }
+
+      onCreditsDeducted(result.newBalance);
+
       const filename = `YTHuz_${metadata.id}_thumbnail_${selectedThumb.quality}.jpg`;
       await downloadThumbnail(selectedThumb.url, filename);
-      onToast(`Thumbnail (${selectedThumb.label}) downloaded!`, 'success');
+      onToast(
+        `Thumbnail downloaded! -${DOWNLOAD_CREDIT_COST} credits deducted (Balance: ${result.newBalance} 🪙)`,
+        'success'
+      );
     } catch {
       onToast('Failed to download thumbnail', 'error');
     } finally {
@@ -161,25 +205,37 @@ export const VideoPreview: React.FC<VideoPreviewProps> = ({ metadata, onToast })
                 ))}
               </div>
 
-              {/* Direct Download Thumbnail Button */}
+              {/* Direct Download Thumbnail Button with 3 Credits Cost */}
               <button
                 type="button"
                 onClick={handleDownloadThumbnail}
                 disabled={isDownloadingThumb}
-                className="w-full py-2.5 px-4 rounded-xl font-bold text-xs sm:text-sm bg-neutral-900 hover:bg-neutral-800 dark:bg-white dark:hover:bg-neutral-100 text-white dark:text-neutral-900 transition-all shadow-sm flex items-center justify-center gap-2 cursor-pointer"
+                className="w-full py-2.5 px-4 rounded-xl font-bold text-xs sm:text-sm bg-neutral-900 hover:bg-neutral-800 dark:bg-white dark:hover:bg-neutral-100 text-white dark:text-neutral-900 transition-all shadow-sm flex items-center justify-between gap-2 cursor-pointer group"
               >
                 {isDownloadingThumb ? (
-                  <>
+                  <div className="flex items-center justify-center w-full gap-2">
                     <div className="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                    <span>Downloading Image...</span>
-                  </>
+                    <span>Processing Thumbnail...</span>
+                  </div>
                 ) : (
                   <>
-                    <Download className="w-4 h-4 text-red-500" />
-                    <span>Download {selectedThumb.label}</span>
+                    <div className="flex items-center gap-2">
+                      <Download className="w-4 h-4 text-red-500 group-hover:scale-110 transition-transform" />
+                      <span>Download {selectedThumb.label}</span>
+                    </div>
+                    <span className="px-2 py-0.5 rounded-full bg-red-500/20 text-red-600 dark:text-red-700 dark:group-hover:text-red-600 text-[11px] font-black border border-red-500/30">
+                      3 🪙
+                    </span>
                   </>
                 )}
               </button>
+
+              <div className="mt-2 flex items-center justify-between text-[11px] text-neutral-500 px-1">
+                <span>Deducts 3 credits per save</span>
+                <span className="font-semibold text-neutral-700 dark:text-neutral-300">
+                  Wallet: {currentUser?.credits ?? 0} 🪙
+                </span>
+              </div>
             </div>
           </div>
 

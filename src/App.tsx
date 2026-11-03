@@ -20,6 +20,7 @@ import { ToastContainer, ToastMessage } from './components/Toast';
 import { AuthModal } from './components/AuthModal';
 import { BuyCreditsModal } from './components/BuyCreditsModal';
 import { AdminApprovalModal } from './components/AdminApprovalModal';
+import { LoginPage } from './components/LoginPage';
 import { VideoMetadata, DownloadHistoryItem, SupabaseSettings } from './types';
 import { fetchVideoMetadata, SAMPLE_VIDEOS } from './utils/youtube';
 import {
@@ -31,12 +32,13 @@ import {
 import {
   AppUser,
   getCurrentUser,
+  logoutUser,
   getAllRechargeRequests,
-  getAllUsers,
+  ADMIN_EMAIL,
 } from './utils/credits';
 
 export default function App() {
-  // Theme state: default to dark for the signature YouTube/video studio feel
+  // Theme state: default to dark for signature video studio aesthetic
   const [darkMode, setDarkMode] = useState<boolean>(() => {
     try {
       const saved = localStorage.getItem('ythuz_theme');
@@ -48,7 +50,12 @@ export default function App() {
   });
 
   // User and credits state
-  const [currentUser, setCurrentUser] = useState<AppUser>(() => getCurrentUser());
+  const [currentUser, setCurrentUser] = useState<AppUser | null>(() => getCurrentUser());
+  // Show dedicated login page if user has not logged in yet
+  const [showLoginPage, setShowLoginPage] = useState<boolean>(() => {
+    return !localStorage.getItem('ythuz_current_user_id_v2');
+  });
+
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [isBuyCreditsModalOpen, setIsBuyCreditsModalOpen] = useState(false);
   const [isAdminModalOpen, setIsAdminModalOpen] = useState(false);
@@ -95,6 +102,13 @@ export default function App() {
     );
   };
 
+  const handleLogout = () => {
+    logoutUser();
+    setCurrentUser(null);
+    setShowLoginPage(true);
+    showToast('Logged out successfully.', 'info');
+  };
+
   // Sync theme with document element
   useEffect(() => {
     if (darkMode) {
@@ -116,7 +130,7 @@ export default function App() {
       setHistory(items);
     });
 
-    // Check query params for autostart or initial video url (useful for automated tests)
+    // Check query params for autostart or initial video url
     const params = new URLSearchParams(window.location.search);
     const autostart = params.get('autostart');
     const videoParam = params.get('v') || params.get('url');
@@ -173,7 +187,7 @@ export default function App() {
   };
 
   const handleCreditsDeducted = (newBalance: number) => {
-    setCurrentUser((prev) => ({ ...prev, credits: newBalance }));
+    setCurrentUser((prev) => (prev ? { ...prev, credits: newBalance } : null));
   };
 
   const handleClearHistory = async () => {
@@ -181,6 +195,28 @@ export default function App() {
     setHistory([]);
     showToast('Download history cleared', 'info');
   };
+
+  // If user is not logged in and login gate is active, show LoginPage first!
+  if (showLoginPage && !currentUser) {
+    return (
+      <div className="min-h-screen bg-neutral-950 text-white font-sans">
+        <LoginPage
+          onSuccess={(user) => {
+            setCurrentUser(user);
+            setShowLoginPage(false);
+            refreshUserData();
+          }}
+          onSkip={() => {
+            setShowLoginPage(false);
+          }}
+          onToast={showToast}
+          darkMode={darkMode}
+          onToggleDarkMode={handleToggleDarkMode}
+        />
+        <ToastContainer toasts={toasts} onDismiss={dismissToast} />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-neutral-50 dark:bg-neutral-950 text-neutral-900 dark:text-neutral-100 font-sans selection:bg-red-500 selection:text-white transition-colors duration-200">
@@ -196,7 +232,13 @@ export default function App() {
         onOpenSupabaseModal={() => setIsSupabaseModalOpen(true)}
         isSupabaseConnected={supabaseConfig.enabled}
         currentUser={currentUser}
-        onOpenAuth={() => setIsAuthModalOpen(true)}
+        onOpenAuth={() => {
+          if (currentUser) {
+            setIsAuthModalOpen(true);
+          } else {
+            setShowLoginPage(true);
+          }
+        }}
         onOpenBuyCredits={() => setIsBuyCreditsModalOpen(true)}
         onOpenAdmin={() => setIsAdminModalOpen(true)}
         pendingRechargesCount={pendingRechargesCount}
@@ -216,7 +258,14 @@ export default function App() {
         {/* Video Preview & Download Configuration */}
         {currentVideo && (
           <section id="video-preview-section" className="scroll-mt-24">
-            <VideoPreview metadata={currentVideo} onToast={showToast} />
+            <VideoPreview
+              metadata={currentVideo}
+              currentUser={currentUser}
+              onCreditsDeducted={handleCreditsDeducted}
+              onOpenBuyCredits={() => setIsBuyCreditsModalOpen(true)}
+              onOpenAuth={() => setShowLoginPage(true)}
+              onToast={showToast}
+            />
             <DownloadOptions
               metadata={currentVideo}
               currentUser={currentUser}
@@ -251,18 +300,21 @@ export default function App() {
       {/* Global Footer */}
       <Footer onOpenModal={(type) => setActiveLegalModal(type)} />
 
-      {/* Authentication Modal (Login / 20 Free Credits Bonus) */}
-      <AuthModal
-        isOpen={isAuthModalOpen}
-        onClose={() => setIsAuthModalOpen(false)}
-        currentUser={currentUser}
-        onUserChanged={(user) => {
-          setCurrentUser(user);
-          refreshUserData();
-        }}
-        onToast={showToast}
-        onOpenBuyCredits={() => setIsBuyCreditsModalOpen(true)}
-      />
+      {/* Authentication Modal (Profile / Switch Account / Bonus) */}
+      {currentUser && (
+        <AuthModal
+          isOpen={isAuthModalOpen}
+          onClose={() => setIsAuthModalOpen(false)}
+          currentUser={currentUser}
+          onUserChanged={(user) => {
+            setCurrentUser(user);
+            refreshUserData();
+          }}
+          onToast={showToast}
+          onOpenBuyCredits={() => setIsBuyCreditsModalOpen(true)}
+          onLogout={handleLogout}
+        />
+      )}
 
       {/* Buy Credits Modal (UPI 6201927841@ybl & UTR Verification) */}
       <BuyCreditsModal
@@ -273,16 +325,17 @@ export default function App() {
         }}
         currentUser={currentUser}
         onToast={showToast}
+        onOpenAuth={() => setShowLoginPage(true)}
       />
 
-      {/* Admin Approval Modal (Review & Approve UPI Recharges) */}
+      {/* Admin Approval Modal (Restricted to hozikhan00@gmail.com) */}
       <AdminApprovalModal
         isOpen={isAdminModalOpen}
         onClose={() => {
           setIsAdminModalOpen(false);
           refreshUserData();
         }}
-        currentUser={currentUser}
+        currentUser={currentUser ?? { id: '', email: 'guest@ythuz.app', name: 'Guest', credits: 0, role: 'user', createdAt: 0 }}
         onUserRefreshed={refreshUserData}
         onToast={showToast}
       />

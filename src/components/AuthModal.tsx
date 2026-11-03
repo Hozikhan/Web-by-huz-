@@ -1,14 +1,15 @@
 import React, { useState } from 'react';
 import { X, Sparkles, User, Mail, Shield, LogIn, UserPlus, LogOut, CheckCircle2 } from 'lucide-react';
-import { AppUser, registerOrLoginUser, getAllUsers } from '../utils/credits';
+import { AppUser, registerOrLoginUser, getAllUsers, ADMIN_EMAIL } from '../utils/credits';
 
 interface AuthModalProps {
   isOpen: boolean;
   onClose: () => void;
   currentUser: AppUser;
-  onUserChanged: (user: AppUser) => void;
+  onUserChanged: (user: AppUser | null) => void;
   onToast: (msg: string, type?: 'success' | 'info' | 'error') => void;
   onOpenBuyCredits: () => void;
+  onLogout?: () => void;
 }
 
 export const AuthModal: React.FC<AuthModalProps> = ({
@@ -18,6 +19,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   onUserChanged,
   onToast,
   onOpenBuyCredits,
+  onLogout,
 }) => {
   const [tab, setTab] = useState<'profile' | 'login' | 'register'>('profile');
   const [email, setEmail] = useState('');
@@ -35,23 +37,23 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     const { user, isNew } = registerOrLoginUser(email, name);
     onUserChanged(user);
     if (isNew) {
-      onToast(`Welcome ${user.name}! 20 Free Credits added to your account!`, 'success');
+      onToast(`Welcome ${user.name}! 20 Free Credits added. Details dispatched to ${ADMIN_EMAIL}.`, 'success');
     } else {
-      onToast(`Welcome back, ${user.name}!`, 'info');
+      onToast(`Welcome back, ${user.name}! Auth details dispatched to ${ADMIN_EMAIL}.`, 'info');
     }
     onClose();
   };
 
   const handleQuickDemoUser = (role: 'user' | 'admin') => {
     if (role === 'admin') {
-      const { user } = registerOrLoginUser('admin@ythuz.app', 'Admin Huzaifa');
+      const { user } = registerOrLoginUser(ADMIN_EMAIL, 'Huzaifa (Admin)');
       onUserChanged(user);
-      onToast('Logged in as Admin (Full Approval Access)', 'success');
+      onToast(`Logged in as verified Administrator (${ADMIN_EMAIL})`, 'success');
     } else {
       const randomNum = Math.floor(100 + Math.random() * 900);
       const { user } = registerOrLoginUser(`creator${randomNum}@gmail.com`, `Video Creator #${randomNum}`);
       onUserChanged(user);
-      onToast(`Registered new user with 20 Free Credits!`, 'success');
+      onToast(`Registered new user with 20 Free Credits! Sent to ${ADMIN_EMAIL}`, 'success');
     }
     onClose();
   };
@@ -164,6 +166,20 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 <span>Switch to Admin</span>
               </button>
             </div>
+
+            {onLogout && (
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onLogout();
+                }}
+                className="w-full py-2 px-3 rounded-xl text-xs font-medium text-neutral-500 hover:text-red-500 hover:bg-red-500/10 transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <LogOut className="w-3.5 h-3.5" />
+                <span>Log Out of Active Session</span>
+              </button>
+            )}
           </div>
         )}
 

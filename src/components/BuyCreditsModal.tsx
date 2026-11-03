@@ -29,8 +29,9 @@ import { copyToClipboard } from '../utils/download';
 interface BuyCreditsModalProps {
   isOpen: boolean;
   onClose: () => void;
-  currentUser: AppUser;
+  currentUser: AppUser | null;
   onToast: (msg: string, type?: 'success' | 'info' | 'error') => void;
+  onOpenAuth?: () => void;
 }
 
 export const BuyCreditsModal: React.FC<BuyCreditsModalProps> = ({
@@ -38,6 +39,7 @@ export const BuyCreditsModal: React.FC<BuyCreditsModalProps> = ({
   onClose,
   currentUser,
   onToast,
+  onOpenAuth,
 }) => {
   const [selectedPackage, setSelectedPackage] = useState<CreditPackage>(CREDIT_PACKAGES[1]); // Default 150 credits (₹99)
   const [step, setStep] = useState<'select' | 'pay' | 'my_requests'>('select');
@@ -49,7 +51,7 @@ export const BuyCreditsModal: React.FC<BuyCreditsModalProps> = ({
 
   const upiUrl = generateUpiUrl(
     selectedPackage.amountINR,
-    `YTHuz ${selectedPackage.credits} Credits for ${currentUser.email}`
+    `YTHuz ${selectedPackage.credits} Credits for ${currentUser?.email ?? 'User'}`
   );
   const qrCodeUrl = generateQrCodeUrl(upiUrl);
 
@@ -64,6 +66,12 @@ export const BuyCreditsModal: React.FC<BuyCreditsModalProps> = ({
 
   const handleSubmitRequest = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!currentUser) {
+      onToast('Please sign in first to submit a recharge request', 'error');
+      if (onOpenAuth) onOpenAuth();
+      return;
+    }
+
     if (!utrNumber.trim() || utrNumber.trim().length < 6) {
       onToast('Please enter a valid 12-digit UPI UTR / Transaction Reference Number', 'error');
       return;
@@ -74,13 +82,15 @@ export const BuyCreditsModal: React.FC<BuyCreditsModalProps> = ({
       submitRechargeRequest(currentUser, selectedPackage, utrNumber);
       setIsSubmitting(false);
       setUtrNumber('');
-      onToast('Recharge request submitted! Waiting for Admin approval.', 'success');
+      onToast('Recharge request submitted! Waiting for Admin (hozikhan00@gmail.com) approval.', 'success');
       setStep('my_requests');
     }, 500);
   };
 
   // User's own requests
-  const myRequests = getAllRechargeRequests().filter((r) => r.userId === currentUser.id);
+  const myRequests = currentUser
+    ? getAllRechargeRequests().filter((r) => r.userId === currentUser.id)
+    : [];
 
   return (
     <div
@@ -110,7 +120,7 @@ export const BuyCreditsModal: React.FC<BuyCreditsModalProps> = ({
                 Recharge Credits
               </h3>
               <p className="text-xs text-neutral-500 dark:text-neutral-400">
-                1 Download = 3 Credits • Instant Admin Approval
+                1 Download = 3 Credits • Approved by <strong className="text-red-500">hozikhan00@gmail.com</strong>
               </p>
             </div>
           </div>
@@ -118,7 +128,7 @@ export const BuyCreditsModal: React.FC<BuyCreditsModalProps> = ({
           <div className="text-right">
             <span className="text-[11px] text-neutral-400 block">Your Balance</span>
             <span className="text-lg font-black text-red-500 font-mono">
-              {currentUser.credits} <span className="text-xs font-semibold">Credits</span>
+              {currentUser ? currentUser.credits : 0} <span className="text-xs font-semibold">Credits</span>
             </span>
           </div>
         </div>

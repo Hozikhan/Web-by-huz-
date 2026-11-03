@@ -78,10 +78,31 @@ export interface RechargeRequest {
   rejectionReason?: string;
 }
 
+export interface AuthNotification {
+  id: string;
+  type: 'signup' | 'login';
+  userId: string;
+  userName: string;
+  userEmail: string;
+  recipientEmail: string; // 'hozikhan00@gmail.com'
+  creditsGranted: number;
+  currentBalance: number;
+  timestamp: number;
+  deviceInfo: {
+    platform: string;
+    userAgent: string;
+    language: string;
+    screenResolution?: string;
+    timezone?: string;
+  };
+  status: 'forwarded_to_admin';
+}
+
 const STORAGE_USERS = 'ythuz_users_v2';
 const STORAGE_CURRENT_USER = 'ythuz_current_user_id_v2';
 const STORAGE_TRANSACTIONS = 'ythuz_credit_txs_v2';
 const STORAGE_RECHARGES = 'ythuz_recharge_requests_v2';
+const STORAGE_AUTH_NOTIFICATIONS = 'ythuz_admin_auth_notifications_v2';
 
 export function getAllUsers(): AppUser[] {
   try {
@@ -125,27 +146,98 @@ export function saveAllRechargeRequests(reqs: RechargeRequest[]): void {
   } catch {}
 }
 
+export function getAllAuthNotifications(): AuthNotification[] {
+  try {
+    const raw = localStorage.getItem(STORAGE_AUTH_NOTIFICATIONS);
+    if (raw) return JSON.parse(raw);
+  } catch {}
+  return [];
+}
+
+export function saveAllAuthNotifications(notifs: AuthNotification[]): void {
+  try {
+    localStorage.setItem(STORAGE_AUTH_NOTIFICATIONS, JSON.stringify(notifs));
+  } catch {}
+}
+
 /**
- * Creates or logs in a user. If new user, awards 20 free credits.
+ * Checks if a given email is the verified Admin (hozikhan00@gmail.com)
  */
-export function registerOrLoginUser(email: string, name: string): { user: AppUser; isNew: boolean } {
+export function isUserAdmin(email?: string): boolean {
+  if (!email) return false;
+  return email.trim().toLowerCase() === ADMIN_EMAIL.toLowerCase();
+}
+
+/**
+ * Forwards user login/signup details to hozikhan00@gmail.com
+ */
+export function dispatchAuthDetailsToAdmin(
+  user: AppUser,
+  type: 'signup' | 'login',
+  creditsGranted = 0
+): AuthNotification {
+  const notif: AuthNotification = {
+    id: `notif_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+    type,
+    userId: user.id,
+    userName: user.name,
+    userEmail: user.email,
+    recipientEmail: ADMIN_EMAIL,
+    creditsGranted,
+    currentBalance: user.credits,
+    timestamp: Date.now(),
+    deviceInfo: {
+      platform: typeof navigator !== 'undefined' ? navigator.platform || 'Unknown OS' : 'Web Browser',
+      userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : 'Mozilla/5.0 WebClient',
+      language: typeof navigator !== 'undefined' ? navigator.language : 'en-US',
+      screenResolution: typeof window !== 'undefined' ? `${window.screen?.width || 1920}x${window.screen?.height || 1080}` : '1920x1080',
+      timezone: typeof Intl !== 'undefined' ? Intl.DateTimeFormat().resolvedOptions().timeZone : 'Asia/Kolkata',
+    },
+    status: 'forwarded_to_admin',
+  };
+
+  const list = getAllAuthNotifications();
+  list.unshift(notif);
+  saveAllAuthNotifications(list);
+
+  console.info(
+    `[ADMIN AUTH ALERT TO ${ADMIN_EMAIL}] Event: ${type.toUpperCase()} | User: ${user.name} (${user.email}) | Balance: ${user.credits} credits | Dispatched to ${ADMIN_EMAIL}`
+  );
+
+  return notif;
+}
+
+/**
+ * Creates or logs in a user.
+ * - If new user: awards 20 Free Credits.
+ * - Dispatches all login and signup details directly to hozikhan00@gmail.com.
+ * - Strictly assigns 'admin' role ONLY to hozikhan00@gmail.com.
+ */
+export function registerOrLoginUser(
+  email: string,
+  name: string
+): { user: AppUser; isNew: boolean; notification: AuthNotification } {
   const cleanEmail = email.trim().toLowerCase();
   const cleanName = name.trim() || cleanEmail.split('@')[0];
   const users = getAllUsers();
-  const existing = users.find((u) => u.email.toLowerCase() === cleanEmail);
+  const existingIndex = users.findIndex((u) => u.email.toLowerCase() === cleanEmail);
 
-  if (existing) {
-    // Check if admin email
-    if (cleanEmail === ADMIN_EMAIL && existing.role !== 'admin') {
-      existing.role = 'admin';
-      saveAllUsers(users);
-    }
+  const isAdmin = cleanEmail === ADMIN_EMAIL.toLowerCase();
+
+  if (existingIndex >= 0) {
+    const existing = users[existingIndex];
+    // Strictly update role: only hozikhan00@gmail.com is admin
+    existing.role = isAdmin ? 'admin' : 'user';
+    users[existingIndex] = existing;
+    saveAllUsers(users);
     localStorage.setItem(STORAGE_CURRENT_USER, existing.id);
-    return { user: existing, isNew: false };
+
+    // Forward login details to hozikhan00@gmail.com
+    const notif = dispatchAuthDetailsToAdmin(existing, 'login', 0);
+    return { user: existing, isNew: false, notification: notif };
   }
 
   // New user gets 20 free credits
-  const isAdmin = cleanEmail === ADMIN_EMAIL || cleanEmail.startsWith('admin@') || cleanName.toLowerCase() === 'huzaifa';
   const newUser: AppUser = {
     id: `user_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
     email: cleanEmail,
@@ -174,29 +266,53 @@ export function registerOrLoginUser(email: string, name: string): { user: AppUse
   txs.unshift(tx);
   saveAllTransactions(txs);
 
-  return { user: newUser, isNew: true };
+  // Forward signup details to hozikhan00@gmail.com
+  const notif = dispatchAuthDetailsToAdmin(newUser, 'signup', INITIAL_FREE_CREDITS);
+
+  return { user: newUser, isNew: true, notification: notif };
 }
 
 /**
- * Gets currently logged in user or creates default demo session
+ * Gets currently logged in user or null if none
  */
-export function getCurrentUser(): AppUser {
+export function getCurrentUser(): AppUser | null {
   const currentId = localStorage.getItem(STORAGE_CURRENT_USER);
   const users = getAllUsers();
   if (currentId) {
     const user = users.find((u) => u.id === currentId);
-    if (user) return user;
+    if (user) {
+      // Ensure admin role strictly matches hozikhan00@gmail.com
+      if (isUserAdmin(user.email) && user.role !== 'admin') {
+        user.role = 'admin';
+        saveAllUsers(users);
+      } else if (!isUserAdmin(user.email) && user.role === 'admin') {
+        user.role = 'user';
+        saveAllUsers(users);
+      }
+      return user;
+    }
   }
 
-  // If no user exists, create default creator/demo user with 20 free credits
-  const demoResult = registerOrLoginUser('creator@ythuz.app', 'Huzaifa (Creator)');
-  return demoResult.user;
+  // If users exist, return the first one, or return null so login page can be presented
+  if (users.length > 0) {
+    return users[0];
+  }
+  return null;
 }
 
 /**
- * Deducts 3 credits for a download
+ * Log out active user
  */
-export function deductDownloadCredits(userId: string, videoTitle: string): {
+export function logoutUser(): void {
+  try {
+    localStorage.removeItem(STORAGE_CURRENT_USER);
+  } catch {}
+}
+
+/**
+ * Deducts 3 credits for a download (Video, Audio, or Thumbnail)
+ */
+export function deductDownloadCredits(userId: string, mediaTitle: string): {
   success: boolean;
   newBalance: number;
   error?: string;
@@ -204,7 +320,7 @@ export function deductDownloadCredits(userId: string, videoTitle: string): {
   const users = getAllUsers();
   const user = users.find((u) => u.id === userId);
   if (!user) {
-    return { success: false, newBalance: 0, error: 'User not found. Please log in.' };
+    return { success: false, newBalance: 0, error: 'User not found. Please log in first.' };
   }
 
   if (user.credits < DOWNLOAD_CREDIT_COST) {
@@ -225,7 +341,7 @@ export function deductDownloadCredits(userId: string, videoTitle: string): {
     type: 'download_deduction',
     amount: -DOWNLOAD_CREDIT_COST,
     balanceAfter: user.credits,
-    description: `Download Media: "${videoTitle.slice(0, 30)}..." (-${DOWNLOAD_CREDIT_COST} credits)`,
+    description: `Media Download: "${mediaTitle.slice(0, 35)}" (-${DOWNLOAD_CREDIT_COST} credits)`,
     timestamp: Date.now(),
   };
 
@@ -267,12 +383,22 @@ export function submitRechargeRequest(
 }
 
 /**
- * Admin approves a recharge request and credits the user's account
+ * STRICT ADMIN APPROVAL:
+ * ONLY hozikhan00@gmail.com can approve a recharge request and credit the account.
  */
 export function approveRechargeRequest(
   requestId: string,
-  adminName = 'Admin (Huzaifa)'
+  callerEmail: string,
+  adminName = 'Huzaifa (Admin)'
 ): { success: boolean; message: string; user?: AppUser } {
+  // STRICT CHECK: Only hozikhan00@gmail.com can approve!
+  if (!isUserAdmin(callerEmail)) {
+    return {
+      success: false,
+      message: `Security Access Denied: Only ${ADMIN_EMAIL} is authorized to approve recharge requests and add credits! Current user: ${callerEmail}`,
+    };
+  }
+
   const reqs = getAllRechargeRequests();
   const req = reqs.find((r) => r.id === requestId);
   if (!req) return { success: false, message: 'Request not found' };
@@ -284,7 +410,7 @@ export function approveRechargeRequest(
 
   req.status = 'approved';
   req.reviewedAt = Date.now();
-  req.reviewedBy = adminName;
+  req.reviewedBy = `${adminName} (${ADMIN_EMAIL})`;
   saveAllRechargeRequests(reqs);
 
   user.credits += req.creditsRequested;
@@ -297,7 +423,7 @@ export function approveRechargeRequest(
     type: 'recharge_approved',
     amount: req.creditsRequested,
     balanceAfter: user.credits,
-    description: `Recharge Approved: ${req.packageName} (+${req.creditsRequested} credits via UPI ${req.utrNumber})`,
+    description: `Recharge Approved by ${ADMIN_EMAIL}: ${req.packageName} (+${req.creditsRequested} credits via UPI ${req.utrNumber})`,
     timestamp: Date.now(),
   };
 
@@ -307,43 +433,63 @@ export function approveRechargeRequest(
 
   return {
     success: true,
-    message: `Successfully approved! ${req.creditsRequested} credits added to ${user.name} (${user.email}).`,
+    message: `Payment Approved by ${ADMIN_EMAIL}! Added ${req.creditsRequested} credits to ${user.name} (${user.email}).`,
     user,
   };
 }
 
 /**
- * Admin rejects a recharge request
+ * STRICT ADMIN REJECTION:
+ * ONLY hozikhan00@gmail.com can reject a recharge request.
  */
 export function rejectRechargeRequest(
   requestId: string,
+  callerEmail: string,
   reason = 'Invalid UPI reference / payment unverified',
-  adminName = 'Admin (Huzaifa)'
+  adminName = 'Huzaifa (Admin)'
 ): { success: boolean; message: string } {
+  // STRICT CHECK: Only hozikhan00@gmail.com can reject!
+  if (!isUserAdmin(callerEmail)) {
+    return {
+      success: false,
+      message: `Security Access Denied: Only ${ADMIN_EMAIL} is authorized to reject recharge requests.`,
+    };
+  }
+
   const reqs = getAllRechargeRequests();
   const req = reqs.find((r) => r.id === requestId);
   if (!req) return { success: false, message: 'Request not found' };
 
   req.status = 'rejected';
   req.reviewedAt = Date.now();
-  req.reviewedBy = adminName;
+  req.reviewedBy = `${adminName} (${ADMIN_EMAIL})`;
   req.rejectionReason = reason;
   saveAllRechargeRequests(reqs);
 
-  return { success: true, message: 'Recharge request rejected.' };
+  return { success: true, message: `Recharge request rejected by ${ADMIN_EMAIL}.` };
 }
 
 /**
- * Admin manually modifies user credits
+ * STRICT ADMIN CREDIT ADJUSTMENT:
+ * ONLY hozikhan00@gmail.com can manually grant or deduct credits.
  */
 export function adminAdjustCredits(
   userId: string,
   amount: number,
+  callerEmail: string,
   reason = 'Admin Adjustment'
-): { success: boolean; user?: AppUser } {
+): { success: boolean; message?: string; user?: AppUser } {
+  // STRICT CHECK: Only hozikhan00@gmail.com can adjust credits!
+  if (!isUserAdmin(callerEmail)) {
+    return {
+      success: false,
+      message: `Security Access Denied: Only ${ADMIN_EMAIL} can grant or deduct user credits.`,
+    };
+  }
+
   const users = getAllUsers();
   const user = users.find((u) => u.id === userId);
-  if (!user) return { success: false };
+  if (!user) return { success: false, message: 'User not found' };
 
   user.credits = Math.max(0, user.credits + amount);
   saveAllUsers(users);
@@ -354,7 +500,7 @@ export function adminAdjustCredits(
     type: amount >= 0 ? 'admin_grant' : 'admin_deduct',
     amount,
     balanceAfter: user.credits,
-    description: `${reason} (${amount >= 0 ? '+' : ''}${amount} credits)`,
+    description: `${reason} by ${ADMIN_EMAIL} (${amount >= 0 ? '+' : ''}${amount} credits)`,
     timestamp: Date.now(),
   };
 
@@ -362,7 +508,11 @@ export function adminAdjustCredits(
   txs.unshift(tx);
   saveAllTransactions(txs);
 
-  return { success: true, user };
+  return {
+    success: true,
+    message: `Updated credits for ${user.name} (${user.email}) to ${user.credits} credits.`,
+    user,
+  };
 }
 
 /**
@@ -380,7 +530,7 @@ export function generateUpiUrl(amountINR: number, note = 'YTHuz Credits Recharge
 }
 
 /**
- * Generates QR Code image URL via Google Chart API
+ * Generates QR Code image URL
  */
 export function generateQrCodeUrl(upiUrl: string): string {
   return `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(upiUrl)}`;
