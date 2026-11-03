@@ -1,0 +1,6 @@
+{
+  "name": "YTHuz - Modern Video Media Suite",
+  "description": "Download thumbnails, copy titles, and manage authorized video and audio files with YTHuz, crafted by Huzaifa.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
