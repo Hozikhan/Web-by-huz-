@@ -89,9 +89,18 @@ export const Hero: React.FC<HeroProps> = ({
           </span>
         </h1>
 
-        <p className="text-lg sm:text-xl text-neutral-600 dark:text-neutral-300 max-w-2xl mx-auto font-normal leading-relaxed mb-8">
+        <p className="text-lg sm:text-xl text-neutral-600 dark:text-neutral-300 max-w-2xl mx-auto font-normal leading-relaxed mb-4">
           A simple and convenient video management experience. Extract high-res thumbnails, copy clean titles, and process authorized media with modern speed.
         </p>
+
+        {/* Credit System Feature Callout */}
+        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-xl bg-amber-500/10 dark:bg-amber-500/15 border border-amber-500/30 text-amber-700 dark:text-amber-400 text-xs font-semibold mb-8">
+          <span>🎁 20 Free Credits on Signup</span>
+          <span>•</span>
+          <span>⚡ 1 Download = 3 Credits</span>
+          <span>•</span>
+          <span>💳 UPI: 6201927841@ybl</span>
+        </div>
 
         {/* Large YouTube URL Input Box */}
         <form onSubmit={handleSubmit} className="relative max-w-3xl mx-auto mb-6">

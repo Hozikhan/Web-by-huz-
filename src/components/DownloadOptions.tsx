@@ -10,21 +10,29 @@ import {
   Sparkles,
   CheckCircle2,
   AlertTriangle,
-  FileCheck,
+  Coins,
+  CreditCard,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { VideoMetadata, MediaType, OutputFormat, DownloadHistoryItem } from '../types';
 import { calculateEstimatedSize } from '../utils/youtube';
 import { generateAuthorizedMediaBlob, saveBlobAsFile } from '../utils/download';
+import { AppUser, DOWNLOAD_CREDIT_COST, deductDownloadCredits } from '../utils/credits';
 
 interface DownloadOptionsProps {
   metadata: VideoMetadata;
+  currentUser: AppUser;
+  onCreditsDeducted: (newCredits: number) => void;
+  onOpenBuyCredits: () => void;
   onDownloadLogged: (item: DownloadHistoryItem) => void;
   onToast: (msg: string, type?: 'success' | 'info' | 'error') => void;
 }
 
 export const DownloadOptions: React.FC<DownloadOptionsProps> = ({
   metadata,
+  currentUser,
+  onCreditsDeducted,
+  onOpenBuyCredits,
   onDownloadLogged,
   onToast,
 }) => {
@@ -61,19 +69,31 @@ export const DownloadOptions: React.FC<DownloadOptionsProps> = ({
     mediaType
   );
 
+  const hasEnoughCredits = currentUser.credits >= DOWNLOAD_CREDIT_COST;
+
   const startDownload = async () => {
     if (!isAuthorizedConfirmed) {
       onToast('Please confirm content authorization or ownership to proceed', 'error');
       return;
     }
 
+    // Check credit balance (3 credits per download)
+    if (!hasEnoughCredits) {
+      onToast(
+        `Insufficient credits! You have ${currentUser.credits} credits, but 1 download requires ${DOWNLOAD_CREDIT_COST} credits.`,
+        'error'
+      );
+      onOpenBuyCredits();
+      return;
+    }
+
     setIsProcessing(true);
     setProgress(0);
-    setProcessStage('Validating authorization & stream manifest...');
+    setProcessStage('Deducting 3 credits & validating stream manifest...');
 
     // Progress simulation with authentic stages
     const stages = [
-      { progress: 20, stage: 'Requesting authorized media container...' },
+      { progress: 20, stage: 'Deducting credits & requesting authorized media container...' },
       { progress: 48, stage: `Encoding stream into ${selectedFormat.toUpperCase()} container...` },
       { progress: 75, stage: 'Muxing audio & video bitstreams...' },
       { progress: 95, stage: 'Finalizing file packaging...' },
@@ -90,6 +110,15 @@ export const DownloadOptions: React.FC<DownloadOptionsProps> = ({
     setProcessStage('Download ready!');
 
     try {
+      // Deduct 3 credits
+      const deductResult = deductDownloadCredits(currentUser.id, metadata.title);
+      if (!deductResult.success) {
+        onToast(deductResult.error || 'Failed to deduct credits', 'error');
+        setIsProcessing(false);
+        return;
+      }
+      onCreditsDeducted(deductResult.newBalance);
+
       // Generate actual media file
       const { blob, filename } = generateAuthorizedMediaBlob(
         metadata.title,
@@ -126,7 +155,7 @@ export const DownloadOptions: React.FC<DownloadOptionsProps> = ({
       };
 
       onDownloadLogged(historyItem);
-      onToast(`Successfully generated ${filename}`, 'success');
+      onToast(`Download started! 3 credits deducted. Remaining: ${deductResult.newBalance} credits.`, 'success');
     } catch {
       onToast('Failed to generate media file', 'error');
     } finally {
@@ -143,12 +172,19 @@ export const DownloadOptions: React.FC<DownloadOptionsProps> = ({
       {/* Header bar */}
       <div className="px-6 py-5 border-b border-neutral-200/80 dark:border-neutral-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h3 className="text-lg sm:text-xl font-bold text-neutral-900 dark:text-white flex items-center gap-2">
-            <Sparkles className="w-5 h-5 text-red-500" />
-            <span>Download Configuration</span>
-          </h3>
+          <div className="flex items-center gap-2">
+            <h3 className="text-lg sm:text-xl font-bold text-neutral-900 dark:text-white flex items-center gap-2">
+              <Sparkles className="w-5 h-5 text-red-500" />
+              <span>Download Configuration</span>
+            </h3>
+            {/* Credit Cost Badge */}
+            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-extrabold bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30">
+              <Coins className="w-3.5 h-3.5 text-amber-500 fill-amber-500/30" />
+              <span>3 Credits / Download</span>
+            </span>
+          </div>
           <p className="text-xs text-neutral-500 dark:text-neutral-400 mt-0.5">
-            Select high-fidelity formats and audio/video profiles
+            Your Wallet Balance: <strong className="text-neutral-800 dark:text-neutral-200">{currentUser.credits} Credits</strong>
           </p>
         </div>
 
@@ -310,9 +346,14 @@ export const DownloadOptions: React.FC<DownloadOptionsProps> = ({
 
         {/* File Information Summary Card */}
         <div className="p-4 rounded-2xl bg-neutral-50 dark:bg-neutral-950 border border-neutral-200/90 dark:border-neutral-800">
-          <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-neutral-400 mb-3">
-            <HardDrive className="w-4 h-4 text-red-500" />
-            <span>File Specification Summary</span>
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-neutral-400">
+              <HardDrive className="w-4 h-4 text-red-500" />
+              <span>File Specification & Cost</span>
+            </div>
+            <span className="text-xs font-bold text-amber-500 font-mono">
+              Cost: 3 Credits (Balance: {currentUser.credits})
+            </span>
           </div>
 
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-xs">
@@ -335,9 +376,9 @@ export const DownloadOptions: React.FC<DownloadOptionsProps> = ({
               </span>
             </div>
             <div>
-              <span className="text-neutral-500 block mb-0.5">Container Profile</span>
-              <span className="font-semibold text-neutral-900 dark:text-white truncate block">
-                {mediaType === 'video' ? 'AV01/VP9/H.264' : 'Audio Stream 44.1/48kHz'}
+              <span className="text-neutral-500 block mb-0.5">Credit Charge</span>
+              <span className="font-extrabold text-amber-500 block">
+                -3 Credits
               </span>
             </div>
           </div>
@@ -386,31 +427,53 @@ export const DownloadOptions: React.FC<DownloadOptionsProps> = ({
             </div>
           )}
 
-          <button
-            type="button"
-            onClick={startDownload}
-            disabled={isProcessing || !isAuthorizedConfirmed}
-            className={`w-full py-4 px-6 rounded-2xl font-extrabold text-white text-base shadow-lg transition-all flex items-center justify-center gap-3 cursor-pointer ${
-              !isAuthorizedConfirmed
-                ? 'bg-neutral-400 dark:bg-neutral-800 cursor-not-allowed opacity-60 text-neutral-300'
-                : 'bg-gradient-to-r from-red-600 via-rose-600 to-red-600 hover:from-red-500 hover:to-rose-500 shadow-red-600/30 active:scale-[0.99]'
-            }`}
-          >
-            {isProcessing ? (
-              <>
-                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                <span>Processing & Packaging Media...</span>
-              </>
-            ) : (
-              <>
-                <Download className="w-5 h-5" />
-                <span>
-                  Download {mediaType === 'video' ? 'Video' : 'Audio'} ({selectedFormat.toUpperCase()} •{' '}
-                  {activeQuality})
-                </span>
-              </>
-            )}
-          </button>
+          {!hasEnoughCredits ? (
+            <div className="p-4 rounded-2xl bg-red-500/10 border border-red-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <p className="font-bold text-sm text-red-600 dark:text-red-400 flex items-center gap-1.5">
+                  <AlertTriangle className="w-4 h-4" />
+                  <span>Insufficient Credits ({currentUser.credits} / 3 needed)</span>
+                </p>
+                <p className="text-xs text-neutral-600 dark:text-neutral-300 mt-0.5">
+                  Each video or audio download costs 3 credits. Recharge your wallet via UPI to continue.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={onOpenBuyCredits}
+                className="px-4 py-2.5 rounded-xl font-bold text-xs bg-red-600 hover:bg-red-500 text-white shadow-md shadow-red-600/20 transition-all flex items-center gap-1.5 shrink-0 cursor-pointer"
+              >
+                <CreditCard className="w-3.5 h-3.5" />
+                <span>Recharge via UPI</span>
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={startDownload}
+              disabled={isProcessing || !isAuthorizedConfirmed}
+              className={`w-full py-4 px-6 rounded-2xl font-extrabold text-white text-base shadow-lg transition-all flex items-center justify-center gap-3 cursor-pointer ${
+                !isAuthorizedConfirmed
+                  ? 'bg-neutral-400 dark:bg-neutral-800 cursor-not-allowed opacity-60 text-neutral-300'
+                  : 'bg-gradient-to-r from-red-600 via-rose-600 to-red-600 hover:from-red-500 hover:to-rose-500 shadow-red-600/30 active:scale-[0.99]'
+              }`}
+            >
+              {isProcessing ? (
+                <>
+                  <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  <span>Processing & Packaging Media (-3 Credits)...</span>
+                </>
+              ) : (
+                <>
+                  <Download className="w-5 h-5" />
+                  <span>
+                    Download {mediaType === 'video' ? 'Video' : 'Audio'} (Cost: 3 Credits • {selectedFormat.toUpperCase()} •{' '}
+                    {activeQuality})
+                  </span>
+                </>
+              )}
+            </button>
+          )}
 
           {!isAuthorizedConfirmed && (
             <p className="text-center text-xs text-amber-600 dark:text-amber-400 flex items-center justify-center gap-1 font-medium">

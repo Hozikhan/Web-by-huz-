@@ -17,6 +17,9 @@ import { Footer } from './components/Footer';
 import { SupabaseModal } from './components/SupabaseModal';
 import { LegalModals, LegalModalType } from './components/LegalModals';
 import { ToastContainer, ToastMessage } from './components/Toast';
+import { AuthModal } from './components/AuthModal';
+import { BuyCreditsModal } from './components/BuyCreditsModal';
+import { AdminApprovalModal } from './components/AdminApprovalModal';
 import { VideoMetadata, DownloadHistoryItem, SupabaseSettings } from './types';
 import { fetchVideoMetadata, SAMPLE_VIDEOS } from './utils/youtube';
 import {
@@ -25,9 +28,15 @@ import {
   clearDownloadHistory,
   getSupabaseConfig,
 } from './utils/supabase';
+import {
+  AppUser,
+  getCurrentUser,
+  getAllRechargeRequests,
+  getAllUsers,
+} from './utils/credits';
 
 export default function App() {
-  // Theme state: default to dark for the signature YouTube/video studio feel, or system preference
+  // Theme state: default to dark for the signature YouTube/video studio feel
   const [darkMode, setDarkMode] = useState<boolean>(() => {
     try {
       const saved = localStorage.getItem('ythuz_theme');
@@ -36,6 +45,15 @@ export default function App() {
     } catch {
       return true;
     }
+  });
+
+  // User and credits state
+  const [currentUser, setCurrentUser] = useState<AppUser>(() => getCurrentUser());
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [isBuyCreditsModalOpen, setIsBuyCreditsModalOpen] = useState(false);
+  const [isAdminModalOpen, setIsAdminModalOpen] = useState(false);
+  const [pendingRechargesCount, setPendingRechargesCount] = useState<number>(() => {
+    return getAllRechargeRequests().filter((r) => r.status === 'pending').length;
   });
 
   // URL and analysis state
@@ -67,6 +85,14 @@ export default function App() {
 
   const dismissToast = (id: string) => {
     setToasts((prev) => prev.filter((t) => t.id !== id));
+  };
+
+  const refreshUserData = () => {
+    const updated = getCurrentUser();
+    setCurrentUser(updated);
+    setPendingRechargesCount(
+      getAllRechargeRequests().filter((r) => r.status === 'pending').length
+    );
   };
 
   // Sync theme with document element
@@ -146,6 +172,10 @@ export default function App() {
     setHistory(updated);
   };
 
+  const handleCreditsDeducted = (newBalance: number) => {
+    setCurrentUser((prev) => ({ ...prev, credits: newBalance }));
+  };
+
   const handleClearHistory = async () => {
     await clearDownloadHistory();
     setHistory([]);
@@ -154,7 +184,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-neutral-50 dark:bg-neutral-950 text-neutral-900 dark:text-neutral-100 font-sans selection:bg-red-500 selection:text-white transition-colors duration-200">
-      {/* Navigation Bar */}
+      {/* Navigation Bar with Credit Wallet, Auth & Admin */}
       <Navbar
         darkMode={darkMode}
         onToggleDarkMode={handleToggleDarkMode}
@@ -165,6 +195,11 @@ export default function App() {
         }}
         onOpenSupabaseModal={() => setIsSupabaseModalOpen(true)}
         isSupabaseConnected={supabaseConfig.enabled}
+        currentUser={currentUser}
+        onOpenAuth={() => setIsAuthModalOpen(true)}
+        onOpenBuyCredits={() => setIsBuyCreditsModalOpen(true)}
+        onOpenAdmin={() => setIsAdminModalOpen(true)}
+        pendingRechargesCount={pendingRechargesCount}
       />
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -184,6 +219,9 @@ export default function App() {
             <VideoPreview metadata={currentVideo} onToast={showToast} />
             <DownloadOptions
               metadata={currentVideo}
+              currentUser={currentUser}
+              onCreditsDeducted={handleCreditsDeducted}
+              onOpenBuyCredits={() => setIsBuyCreditsModalOpen(true)}
               onDownloadLogged={handleDownloadLogged}
               onToast={showToast}
             />
@@ -212,6 +250,42 @@ export default function App() {
 
       {/* Global Footer */}
       <Footer onOpenModal={(type) => setActiveLegalModal(type)} />
+
+      {/* Authentication Modal (Login / 20 Free Credits Bonus) */}
+      <AuthModal
+        isOpen={isAuthModalOpen}
+        onClose={() => setIsAuthModalOpen(false)}
+        currentUser={currentUser}
+        onUserChanged={(user) => {
+          setCurrentUser(user);
+          refreshUserData();
+        }}
+        onToast={showToast}
+        onOpenBuyCredits={() => setIsBuyCreditsModalOpen(true)}
+      />
+
+      {/* Buy Credits Modal (UPI 6201927841@ybl & UTR Verification) */}
+      <BuyCreditsModal
+        isOpen={isBuyCreditsModalOpen}
+        onClose={() => {
+          setIsBuyCreditsModalOpen(false);
+          refreshUserData();
+        }}
+        currentUser={currentUser}
+        onToast={showToast}
+      />
+
+      {/* Admin Approval Modal (Review & Approve UPI Recharges) */}
+      <AdminApprovalModal
+        isOpen={isAdminModalOpen}
+        onClose={() => {
+          setIsAdminModalOpen(false);
+          refreshUserData();
+        }}
+        currentUser={currentUser}
+        onUserRefreshed={refreshUserData}
+        onToast={showToast}
+      />
 
       {/* Supabase Settings Modal */}
       <SupabaseModal

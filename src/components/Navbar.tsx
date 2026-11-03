@@ -9,7 +9,12 @@ import {
   Sparkles,
   Youtube,
   ShieldCheck,
+  Coins,
+  Plus,
+  User,
+  ShieldAlert,
 } from 'lucide-react';
+import { AppUser } from '../utils/credits';
 
 interface NavbarProps {
   darkMode: boolean;
@@ -18,6 +23,11 @@ interface NavbarProps {
   onOpenHistory: () => void;
   onOpenSupabaseModal: () => void;
   isSupabaseConnected: boolean;
+  currentUser: AppUser;
+  onOpenAuth: () => void;
+  onOpenBuyCredits: () => void;
+  onOpenAdmin: () => void;
+  pendingRechargesCount: number;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -27,6 +37,11 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenHistory,
   onOpenSupabaseModal,
   isSupabaseConnected,
+  currentUser,
+  onOpenAuth,
+  onOpenBuyCredits,
+  onOpenAdmin,
+  pendingRechargesCount,
 }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -49,7 +64,7 @@ export const Navbar: React.FC<NavbarProps> = ({
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16 sm:h-18">
           {/* Brand Logo */}
-          <div className="flex items-center space-x-3 cursor-pointer" onClick={() => scrollToSection('hero')}>
+          <div className="flex items-center space-x-3 cursor-pointer shrink-0" onClick={() => scrollToSection('hero')}>
             <div className="relative flex items-center justify-center w-10 h-10 rounded-xl bg-gradient-to-tr from-red-600 via-rose-600 to-red-500 shadow-md shadow-red-500/20 text-white font-extrabold">
               <Youtube className="w-5 h-5 fill-current" />
               <div className="absolute -top-1 -right-1 w-3 h-3 bg-red-400 rounded-full animate-ping opacity-75" />
@@ -70,66 +85,105 @@ export const Navbar: React.FC<NavbarProps> = ({
           </div>
 
           {/* Desktop Nav Links */}
-          <div className="hidden md:flex items-center space-x-1 lg:space-x-2">
+          <div className="hidden lg:flex items-center space-x-1">
             <button
               onClick={() => scrollToSection('hero')}
-              className="px-3 py-1.5 rounded-lg text-sm font-medium hover:text-red-500 hover:bg-neutral-100 dark:hover:bg-neutral-900 transition-colors"
+              className="px-3 py-1.5 rounded-lg text-xs font-semibold hover:text-red-500 hover:bg-neutral-100 dark:hover:bg-neutral-900 transition-colors"
             >
               Home
             </button>
             <button
               onClick={() => scrollToSection('features')}
-              className="px-3 py-1.5 rounded-lg text-sm font-medium hover:text-red-500 hover:bg-neutral-100 dark:hover:bg-neutral-900 transition-colors"
+              className="px-3 py-1.5 rounded-lg text-xs font-semibold hover:text-red-500 hover:bg-neutral-100 dark:hover:bg-neutral-900 transition-colors"
             >
               Features
             </button>
             <button
               onClick={() => scrollToSection('formats')}
-              className="px-3 py-1.5 rounded-lg text-sm font-medium hover:text-red-500 hover:bg-neutral-100 dark:hover:bg-neutral-900 transition-colors"
+              className="px-3 py-1.5 rounded-lg text-xs font-semibold hover:text-red-500 hover:bg-neutral-100 dark:hover:bg-neutral-900 transition-colors"
             >
               Formats
             </button>
             <button
               onClick={() => scrollToSection('faq')}
-              className="px-3 py-1.5 rounded-lg text-sm font-medium hover:text-red-500 hover:bg-neutral-100 dark:hover:bg-neutral-900 transition-colors"
+              className="px-3 py-1.5 rounded-lg text-xs font-semibold hover:text-red-500 hover:bg-neutral-100 dark:hover:bg-neutral-900 transition-colors"
             >
               FAQ
             </button>
             <button
               onClick={() => scrollToSection('about')}
-              className="px-3 py-1.5 rounded-lg text-sm font-medium hover:text-red-500 hover:bg-neutral-100 dark:hover:bg-neutral-900 transition-colors"
+              className="px-3 py-1.5 rounded-lg text-xs font-semibold hover:text-red-500 hover:bg-neutral-100 dark:hover:bg-neutral-900 transition-colors"
             >
-              About Creator
+              Creator
             </button>
           </div>
 
-          {/* Right Action Icons & Toggles */}
-          <div className="flex items-center space-x-2 sm:space-x-3">
-            {/* Supabase status / settings button */}
+          {/* Right Action Icons, Wallet & Auth */}
+          <div className="flex items-center space-x-2 sm:space-x-2.5">
+            {/* Credit Wallet Badge */}
+            <div className="flex items-center rounded-xl bg-amber-500/10 border border-amber-500/30 p-0.5 text-xs font-bold text-amber-700 dark:text-amber-400 shadow-sm">
+              <button
+                type="button"
+                onClick={onOpenBuyCredits}
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg hover:bg-amber-500/20 transition-colors cursor-pointer"
+                title="Click to Recharge Credits"
+              >
+                <Coins className="w-3.5 h-3.5 text-amber-500 fill-amber-500/30 animate-pulse" />
+                <span className="font-extrabold">{currentUser.credits}</span>
+                <span className="text-[10px] hidden sm:inline uppercase tracking-wide">Credits</span>
+              </button>
+              <button
+                type="button"
+                onClick={onOpenBuyCredits}
+                className="px-2 py-1 rounded-lg bg-red-600 hover:bg-red-500 text-white font-extrabold text-[11px] transition-colors flex items-center gap-0.5 shadow-sm"
+                title="Recharge Credits via UPI"
+              >
+                <Plus className="w-3 h-3" />
+                <span>Buy</span>
+              </button>
+            </div>
+
+            {/* Admin Panel Trigger (Available for Admin or demo testing) */}
             <button
-              onClick={onOpenSupabaseModal}
-              title={isSupabaseConnected ? 'Supabase Database Connected' : 'Connect Supabase'}
-              className={`flex items-center space-x-1.5 px-2.5 py-1.5 text-xs font-semibold rounded-lg border transition-all ${
-                isSupabaseConnected
-                  ? 'bg-emerald-500/10 text-emerald-500 border-emerald-500/30 dark:bg-emerald-950/30'
-                  : 'bg-neutral-100 dark:bg-neutral-900 text-neutral-600 dark:text-neutral-400 border-neutral-300 dark:border-neutral-800 hover:border-neutral-400'
+              type="button"
+              onClick={onOpenAdmin}
+              className={`relative px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1 cursor-pointer ${
+                currentUser.role === 'admin'
+                  ? 'bg-purple-600 hover:bg-purple-500 text-white shadow-md shadow-purple-600/20'
+                  : 'bg-neutral-100 dark:bg-neutral-800 text-purple-600 dark:text-purple-400 hover:bg-purple-500/10 border border-purple-500/20'
               }`}
-              aria-label="Database Configuration"
+              title="Admin Approval Panel"
             >
-              <Database className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">
-                {isSupabaseConnected ? 'Cloud Synced' : 'Supabase'}
+              <ShieldAlert className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Admin</span>
+              {pendingRechargesCount > 0 && (
+                <span className="flex items-center justify-center min-w-4 h-4 px-1 text-[10px] font-black text-white bg-amber-500 rounded-full animate-bounce">
+                  {pendingRechargesCount}
+                </span>
+              )}
+            </button>
+
+            {/* User Account / Profile Button */}
+            <button
+              type="button"
+              onClick={onOpenAuth}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-bold bg-neutral-100 hover:bg-neutral-200 dark:bg-neutral-800 dark:hover:bg-neutral-700 text-neutral-800 dark:text-neutral-200 border border-neutral-200 dark:border-neutral-700 transition-colors cursor-pointer"
+              title="Account & Profile"
+            >
+              <User className="w-3.5 h-3.5 text-neutral-500" />
+              <span className="max-w-[70px] truncate hidden md:inline">
+                {currentUser.name.split(' ')[0]}
               </span>
             </button>
 
             {/* History drawer button */}
             <button
               onClick={onOpenHistory}
-              className="relative p-2 rounded-lg text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-900 transition-colors"
+              className="relative p-2 rounded-xl text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-900 transition-colors"
               title="Download History"
               aria-label="View Download History"
             >
-              <History className="w-5 h-5" />
+              <History className="w-4 h-4" />
               {historyCount > 0 && (
                 <span className="absolute -top-0.5 -right-0.5 flex items-center justify-center min-w-4 h-4 px-1 text-[10px] font-bold text-white bg-red-600 rounded-full">
                   {historyCount > 9 ? '9+' : historyCount}
@@ -140,24 +194,24 @@ export const Navbar: React.FC<NavbarProps> = ({
             {/* Dark / Light Mode Toggle */}
             <button
               onClick={onToggleDarkMode}
-              className="p-2 rounded-lg text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-900 transition-colors focus:outline-none"
+              className="p-2 rounded-xl text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-900 transition-colors focus:outline-none"
               title={darkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
               aria-label={darkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
             >
               {darkMode ? (
-                <Sun className="w-5 h-5 text-amber-400 transition-transform duration-300 rotate-0 hover:rotate-45" />
+                <Sun className="w-4 h-4 text-amber-400" />
               ) : (
-                <Moon className="w-5 h-5 text-neutral-700 transition-transform duration-300 hover:-rotate-12" />
+                <Moon className="w-4 h-4 text-neutral-700" />
               )}
             </button>
 
             {/* Mobile Menu Hamburger */}
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="md:hidden p-2 rounded-lg text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-900"
+              className="lg:hidden p-2 rounded-xl text-neutral-600 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-900"
               aria-label="Toggle navigation menu"
             >
-              {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+              {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
             </button>
           </div>
         </div>
@@ -165,7 +219,26 @@ export const Navbar: React.FC<NavbarProps> = ({
 
       {/* Mobile Drawer Menu */}
       {mobileMenuOpen && (
-        <div className="md:hidden border-t border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-950 px-4 pt-3 pb-5 space-y-2 animate-fadeIn">
+        <div className="lg:hidden border-t border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-950 px-4 pt-3 pb-5 space-y-2 animate-fadeIn">
+          <div className="p-3 mb-2 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Coins className="w-4 h-4 text-amber-500" />
+              <span className="text-xs font-bold text-neutral-900 dark:text-white">
+                Wallet: {currentUser.credits} Credits
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setMobileMenuOpen(false);
+                onOpenBuyCredits();
+              }}
+              className="px-2.5 py-1 text-xs font-extrabold rounded-lg bg-red-600 text-white"
+            >
+              Buy Credits
+            </button>
+          </div>
+
           <button
             onClick={() => scrollToSection('hero')}
             className="w-full text-left px-3 py-2 rounded-lg text-sm font-medium hover:bg-neutral-100 dark:hover:bg-neutral-900"
@@ -196,12 +269,20 @@ export const Navbar: React.FC<NavbarProps> = ({
           >
             About Creator (Huzaifa)
           </button>
-          <div className="pt-2 border-t border-neutral-200 dark:border-neutral-800 flex items-center justify-between text-xs text-neutral-500">
-            <span>Created by Huzaifa</span>
-            <span className="flex items-center text-red-500 gap-1 font-semibold">
-              <ShieldCheck className="w-3.5 h-3.5" /> Authorized Media
-            </span>
-          </div>
+          <button
+            onClick={() => {
+              setMobileMenuOpen(false);
+              onOpenAdmin();
+            }}
+            className="w-full text-left px-3 py-2 rounded-lg text-sm font-bold text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-950/40 flex items-center justify-between"
+          >
+            <span>Admin Approval Panel</span>
+            {pendingRechargesCount > 0 && (
+              <span className="px-2 py-0.5 rounded-full text-xs font-black bg-amber-500 text-white">
+                {pendingRechargesCount} Pending
+              </span>
+            )}
+          </button>
         </div>
       )}
     </nav>
